@@ -5,11 +5,19 @@ const { Pool } = require('pg');
 const cors = require('cors'); 
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000; // Usar 10000 si Render lo exige, o 3000 si no
 
 // Configuración de la base de datos con la URI de Supabase
+// *****************************************************************
+// MODIFICACIÓN CLAVE: Se pasa un objeto de configuración al Pool 
+// para añadir la opción 'ssl' que resuelve el error de certificado.
+// *****************************************************************
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
+    // Configuración SSL para ignorar el error 'self-signed certificate in certificate chain'
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
 // Middlewares
@@ -25,7 +33,8 @@ app.get('/api/hotspots', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         console.error('Error al obtener hotspots:', err);
-        res.status(500).json({ error: 'Error interno del servidor al obtener datos.' });
+        // Devolvemos el mensaje de error para ayudar en la depuración
+        res.status(500).json({ error: 'Error interno del servidor al obtener datos.', details: err.message });
     }
 });
 
