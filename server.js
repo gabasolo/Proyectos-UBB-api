@@ -105,3 +105,6 @@ app.delete('/api/hotspots/:id', async (req, res) => {
 app.listen(port, () => {
     console.log(`API de Hotspots corriendo en http://localhost:${port}`);
 });
+
+// Pequeño cambio para forzar el despliegue
+
