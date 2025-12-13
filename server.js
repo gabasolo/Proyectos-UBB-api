@@ -59,3 +59,4 @@ app.get('/api/hotspots', async (req, res) => {
 app.listen(port, () => {
     console.log(`API de Hotspots corriendo en http://localhost:${port}`);
 });
+
