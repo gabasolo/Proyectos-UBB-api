@@ -1,15 +1,10 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-// La librería dotenv ya no es estrictamente necesaria en Render si usa variables de entorno directas.
-// require('dotenv').config(); 
 
 const app = express();
-// Usa el puerto proporcionado por Render, que es obligatorio.
 const port = process.env.PORT || 10000; 
 
-// Middleware
-// Configuración de CORS para permitir solicitudes desde cualquier origen (su frontend Vercel, por ejemplo).
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -17,21 +12,30 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ******************************************************
-// BLOQUE DE CÓDIGO CLAVE A MODIFICAR
-// ******************************************************
-
 // Configuración de la base de datos
-// Utiliza la variable de entorno DATABASE_URL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    // INSERCIÓN DE LA CONFIGURACIÓN SSL
     ssl: {
-        rejectUnauthorized: false // Desactiva la verificación del certificado SSL para Supabase en Render
+        rejectUnauthorized: false
     }
 });
 
-// ******************************************************
+// Función de prueba de conexión al inicio
+async function connectToDatabase() {
+    try {
+        const client = await pool.connect();
+        console.log("¡Conexión a Supabase (PostgreSQL) establecida con éxito!");
+        client.release(); 
+    } catch (err) {
+        console.error("#################################################");
+        console.error("ERROR CRÍTICO: FALLÓ LA CONEXIÓN INICIAL A LA BASE DE DATOS.");
+        console.error("Verifique su DATABASE_URL, contraseña y la IP IPv4.");
+        console.error("Detalles del Error:", err.message);
+        console.error("#################################################");
+    }
+}
+
+connectToDatabase(); // Ejecutar la función de prueba
 
 // Ruta de prueba
 app.get('/', (req, res) => {
@@ -40,15 +44,22 @@ app.get('/', (req, res) => {
 
 // Endpoint para obtener hotspots
 app.get('/api/hotspots', async (req, res) => {
+    let client;
     try {
         console.log('Intentando obtener datos de la base de datos...');
-        // Consulta para obtener solo los puntos activos, ya que es el modo por defecto del frontend
-        const result = await pool.query('SELECT * FROM hotspots WHERE activo = TRUE ORDER BY id ASC');
+        client = await pool.connect(); 
+        
+        // Consulta específica (solo activos)
+        const result = await client.query(`
+            SELECT id, titulo, latitud, longitud, activo
+            FROM hotspots
+            WHERE activo = TRUE
+            ORDER BY id ASC
+        `);
+        
         console.log(`Consulta exitosa. Filas encontradas: ${result.rows.length}`);
         res.json(result.rows);
     } catch (err) {
-        
-        // Bloque de manejo de errores mejorado
         console.error('#################################################');
         console.error('Error FATAL al obtener datos de la BD:', err.message); 
         console.error('Código de error PG:', err.code);
@@ -58,6 +69,10 @@ app.get('/api/hotspots', async (req, res) => {
             error: "Error interno del servidor al obtener datos (Fallo de BD).",
             details: err.message || err.code || 'Error desconocido del servidor de BD' 
         });
+    } finally {
+        if (client) {
+            client.release(); // **CRÍTICO:** Asegurar la liberación
+        }
     }
 });
 
