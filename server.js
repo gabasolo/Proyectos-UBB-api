@@ -1,10 +1,16 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+const dns = require('dns'); // 1. IMPORTANTE: Importar módulo DNS
+
+// 2. CRÍTICO: Forzar a Node.js a usar IPv4 primero
+// Esto evita que Render intente usar IPv6 y falle con ENETUNREACH
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const port = process.env.PORT || 10000; 
 
+// Middleware
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -16,28 +22,11 @@ app.use(express.json());
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false // Permite la conexión SSL con Supabase
     }
 });
 
-// Función de prueba de conexión al inicio
-async function connectToDatabase() {
-    try {
-        const client = await pool.connect();
-        console.log("¡Conexión a Supabase (PostgreSQL) establecida con éxito!");
-        client.release(); 
-    } catch (err) {
-        console.error("#################################################");
-        console.error("ERROR CRÍTICO: FALLÓ LA CONEXIÓN INICIAL A LA BASE DE DATOS.");
-        console.error("Verifique su DATABASE_URL, contraseña y la IP IPv4.");
-        console.error("Detalles del Error:", err.message);
-        console.error("#################################################");
-    }
-}
-
-connectToDatabase(); // Ejecutar la función de prueba
-
-// Ruta de prueba
+// Ruta raíz
 app.get('/', (req, res) => {
     res.send('API de Hotspots funcionando. Accede a /api/hotspots para obtener datos.');
 });
@@ -47,13 +36,12 @@ app.get('/api/hotspots', async (req, res) => {
     let client;
     try {
         console.log('Intentando obtener datos de la base de datos...');
-        client = await pool.connect(); 
+        client = await pool.connect();
         
-        // Consulta específica (solo activos)
+        // Consulta solo puntos activos
         const result = await client.query(`
-            SELECT id, titulo, latitud, longitud, activo
-            FROM hotspots
-            WHERE activo = TRUE
+            SELECT * FROM hotspots 
+            WHERE activo = TRUE 
             ORDER BY id ASC
         `);
         
@@ -61,22 +49,21 @@ app.get('/api/hotspots', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         console.error('#################################################');
-        console.error('Error FATAL al obtener datos de la BD:', err.message); 
-        console.error('Código de error PG:', err.code);
+        console.error('Error FATAL al obtener datos de la BD:', err.message);
+        console.error('Código de error:', err.code);
         console.error('#################################################');
         
         res.status(500).json({
-            error: "Error interno del servidor al obtener datos (Fallo de BD).",
-            details: err.message || err.code || 'Error desconocido del servidor de BD' 
+            error: "Error interno del servidor",
+            details: err.message 
         });
     } finally {
         if (client) {
-            client.release(); // **CRÍTICO:** Asegurar la liberación
+            client.release(); // Liberar conexión
         }
     }
 });
 
-// Inicia el servidor
 app.listen(port, () => {
     console.log(`API de Hotspots corriendo en el puerto: ${port}`);
 });
