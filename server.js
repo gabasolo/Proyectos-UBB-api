@@ -1,27 +1,31 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-require('dotenv').config();
+// La librería dotenv ya no es estrictamente necesaria en Render si usa variables de entorno directas.
+// require('dotenv').config(); 
 
 const app = express();
-const port = process.env.PORT || 10000; // Usa el puerto 10000 para Render, o la variable PORT si existe
+// Usa el puerto proporcionado por Render, que es obligatorio.
+const port = process.env.PORT || 10000; 
 
 // Middleware
+// Configuración de CORS para permitir solicitudes desde cualquier origen (su frontend Vercel, por ejemplo).
 app.use(cors({
-    origin: '*', // Permite todas las solicitudes (ajustar si se conoce el dominio del frontend)
+    origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type']
 }));
 app.use(express.json());
 
-// Configuración de la base de datos con la URI de Supabase
-// NOTA: Se asume que la variable de entorno NODE_TLS_REJECT_UNAUTHORIZED=0 está activa en Render.
-// Por lo tanto, no se requiere configuración SSL aquí.
-
+// Configuración de la base de datos
+// Utiliza la variable de entorno DATABASE_URL, la cual Render ya configura.
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL
-    // Si la URI es la de 5432 y el error de SSL regresa, descomentar esto:
-    /* ssl: {
+    // IMPORTANTE: Se asume que la variable NODE_TLS_REJECT_UNAUTHORIZED=0 está activa en Render
+    // para manejar los certificados SSL de Supabase. Si no funciona, puede intentar descomentar
+    // la configuración SSL aquí (aunque la variable de entorno es más limpia):
+    /*
+    ssl: {
         rejectUnauthorized: false
     }
     */
@@ -29,27 +33,31 @@ const pool = new Pool({
 
 // Ruta de prueba
 app.get('/', (req, res) => {
-    res.send('API de Hotspots está funcionando. Accede a /api/hotspots para obtener datos.');
+    res.send('API de Hotspots funcionando. Accede a /api/hotspots para obtener datos.');
 });
 
 // Endpoint para obtener hotspots
 app.get('/api/hotspots', async (req, res) => {
     try {
-        // Ejecución de la consulta SQL
+        console.log('Intentando obtener datos de la base de datos...');
         const result = await pool.query('SELECT * FROM hotspots ORDER BY id ASC'); 
+        console.log(`Consulta exitosa. Filas encontradas: ${result.rows.length}`);
         res.json(result.rows);
     } catch (err) {
         // ***********************************************
-        // NUEVA LÓGICA DE MANEJO DE ERRORES CRÍTICA
+        // ESTE BLOQUE ES CRÍTICO PARA EL DIAGNÓSTICO FINAL
         // ***********************************************
-
-        // Imprimir el error completo en la consola de Render para la depuración
-        console.error('Error FATAL al obtener hotspots:', err.message, err.code); 
         
-        // Enviar el error específico al frontend (Vercel) para que podamos verlo en la consola del navegador
+        // 1. Imprimir el error completo en la consola de Render
+        console.error('#################################################');
+        console.error('Error FATAL de CONEXIÓN a la BD (Supabase):', err.message); 
+        console.error('Código de error PG:', err.code);
+        console.error('#################################################');
+        
+        // 2. Enviar el error específico al frontend (Vercel)
         res.status(500).json({
-            error: "Error interno del servidor al obtener datos.",
-            // Esto expondrá el código o mensaje real de Supabase/PostgreSQL (ej: 'invalid password')
+            error: "Error interno del servidor al obtener datos (Fallo de BD).",
+            // Esto expondrá el mensaje de error REAL de Supabase/PostgreSQL (ej: 'password authentication failed for user "postgres"')
             details: err.message || err.code || 'Error desconocido del servidor de BD' 
         });
     }
@@ -57,6 +65,5 @@ app.get('/api/hotspots', async (req, res) => {
 
 // Inicia el servidor
 app.listen(port, () => {
-    console.log(`API de Hotspots corriendo en http://localhost:${port}`);
+    console.log(`API de Hotspots corriendo en el puerto: ${port}`);
 });
-
