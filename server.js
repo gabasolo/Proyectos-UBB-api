@@ -1,11 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-const dns = require('dns'); // 1. IMPORTANTE: Importar módulo DNS
 
-// 2. CRÍTICO: Forzar a Node.js a usar IPv4 primero
-// Esto evita que Render intente usar IPv6 y falle con ENETUNREACH
-dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const port = process.env.PORT || 10000; 
